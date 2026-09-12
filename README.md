@@ -13,42 +13,46 @@ Two things, one toolkit:
    decryption key) straight into another account, bypassing a download and
    re-upload.
 
-## Why
-
-The free MEGA tier gives 20 GiB per account and deletes accounts that stay
-inactive ~3 months. If you want a cheap redundant copy of your own files, you
-can fan them out across several accounts and keep them alive on a schedule —
-this tool automates exactly that.
-
 > Use it only with links and files you own or have permission to copy.
 
-## Prerequisites
+---
 
-- **megatools** — the MEGA command-line client. Install the build for your OS
-  and make sure `megatools` is on your `PATH`:
-  - Windows: `megatools-*-win64.zip` from <https://xff.cz/megatools/builds/builds/>
-  - Linux: `apt install megatools` / `dnf install megatools`
-  - Then: `megatools --version`
-- **Python 3.6+**
-- Install the Python deps:
+## Quick start
 
 ```bash
-pip install -r requirements.txt
+# one-shot setup (Windows: setup.bat  /  macos+linux: ./setup.sh)
+setup.bat
+
+# create 3 accounts (they appear in accounts.csv, all auto-verified)
+python generate_accounts.py
 ```
+
+That's it. See **Troubleshooting** at the bottom if a step errors.
+
+---
+
+## Prerequisites (what `setup.bat` / `setup.sh` does for you)
+
+- **Python 3.6+** on your `PATH`.
+- Python deps: `python -m pip install -r requirements.txt`
+  (`python -m pip`, not bare `pip`, so it targets the same interpreter `python` uses).
+- **megatools** on your `PATH`:
+  - Windows: unzip `megatools-*-win64.zip` from
+    <https://xff.cz/megatools/builds/builds/>, then add the folder with
+    `megatools.exe` to your Windows `PATH`.
+  - Linux: `sudo apt install megatools` (or `dnf install megatools`).
+  - Check with: `megatools --version`
+
+---
 
 ## Usage
 
 ### 1. Create accounts
 
 ```bash
-# Create 3 accounts (default)
-python generate_accounts.py
-
-# Create 10 accounts, sequential (safer than threading against mail.tm rate limits)
-python generate_accounts.py -n 10
-
-# Create 5 accounts with a shared password
-python generate_accounts.py -n 5 -p "your-password"
+python generate_accounts.py                 # 3 accounts (default)
+python generate_accounts.py -n 10           # 10 accounts, sequential (safest vs rate limits)
+python generate_accounts.py -n 5 -p "pw"    # 5 accounts, shared password
 ```
 
 Each account is registered and email-verified automatically. Credentials are
@@ -58,20 +62,18 @@ appended to `accounts.csv`:
 |---|---|
 | `Email` | MEGA login (a disposable mail.tm address) |
 | `MEGA Password` | the password you log in with |
-| `Usage` | free-text label (edit it to track what each account holds) |
+| `Usage` | free-text label (edit to track what each account holds) |
 | `Mail.tm Password` / `Mail.tm ID` | the disposable inbox (kept for future access) |
 | `Purpose` | free-text |
 
 ### 2. Keep accounts alive
 
 MEGA deletes accounts that go ~3 months without a login. Log them all in on a
-schedule (run this monthly via cron/systemd):
+schedule (run monthly via cron/Task Scheduler):
 
 ```bash
 python signin_accounts.py
 ```
-
-It reads `accounts.csv` and reports `Successfully logged in` per account.
 
 ### 3. Mirror a link into a backup account (server-side)
 
@@ -87,63 +89,69 @@ Example:
 backup1@example.com,SuperSecret123,https://mega.nz/file/AbCdEfGh#decryption-key
 ```
 
-Then run:
+Run it:
 
 ```bash
 python server_copy.py --plan copy_plan.csv --verify
 ```
 
-For each row it logs into the target account and imports the link server-side.
-Results append to `backup_log.csv`:
-
-| Column | Meaning |
-|---|---|
-| `node_handle` | the new node handle in the target account |
-| `status` | `ok` or the error |
-| `verify` | independent `megatools ls` check (with `--verify`) |
-
-Options:
-
-- `--plan FILE` — plan CSV (default `copy_plan.csv`)
-- `--log FILE` — result log (default `backup_log.csv`)
-- `--verify` — after each import, re-list the target account via `megatools`
-  to confirm the node landed (don't just trust the API's self-report)
+Results append to `backup_log.csv` (`node_handle`, `status`, `verify`).
+`--verify` re-lists the target via `megatools` after each import to confirm the
+node actually landed (don't just trust the API's self-report).
 
 ### 4. (legacy) Convert an old CSV
-
-If you have an `accounts.csv` from before May 2024:
 
 ```bash
 python convert_csv.py -i old_accounts.csv
 ```
 
+---
+
 ## How the server-side copy works
 
-A MEGA file/folder link is `https://mega.nz/file/<HANDLE>#<KEY>`. `HANDLE`
-addresses the encrypted node; `KEY` is the decryption key. `server_copy.py`
-calls MEGA's `p` (put) operation on the target account, passing the public
-handle plus the key re-encrypted under the target's master key. MEGA links the
-existing encrypted blob into the target account — the content is never
-downloaded locally.
+A MEGA link is `https://mega.nz/file/<HANDLE>#<KEY>`. `HANDLE` addresses the
+encrypted node; `KEY` is its decryption key. `server_copy.py` calls MEGA's `p`
+(put) operation on the target account, passing the public handle plus the key
+re-encrypted under the target's master key. MEGA links the existing encrypted
+blob into the target account — the content is never downloaded locally.
 
-This only works for **files via their `#`-key link**. Folder imports differ
-(MEGA-nested key derivation) and aren't covered here.
+This works for **files via their `#`-key link**. Folder imports (MEGA-nested
+key derivation) aren't covered here.
+
+---
+
+## Troubleshooting
+
+**`ModuleNotFoundError: No module named 'pymailtm'` (or `faker`, `mega`)**
+You installed deps with a different Python than the one you're running with.
+Use `python -m pip install -r requirements.txt` (same `python` you run the
+script with) rather than bare `pip`.
+
+**`megatools` is not recognized / it fails at account registration**
+`megatools` isn't on `PATH`. Install it and add its folder to `PATH`, then
+**reopen** the terminal (PATH changes only apply to new shells).
+
+**"Could not get new Mail.tm account" (repeatedly)**
+mail.tm is rate-limiting you. Create sequentially (no `-t`), space batches out,
+and wait a few minutes.
+
+**Account works today but dies later**
+MEGA deletes accounts inactive ~3 months and can suspend disposable-email
+signups. Treat these as mirrors, not your only copy; run `signin_accounts.py`
+monthly.
+
+---
 
 ## Notes & caveats
 
-- **Rate limits**: mail.tm throttles rapid account creation (usually after
-  ~8 in a burst). Create sequentially (`-n` without `-t`) and pace big batches.
-- **Credentials are plaintext** in `accounts.csv` and `backup_log.csv` — both
-  are git-ignored. Treat them as secrets and don't publish them.
-- **Disposable emails**: accounts are registered with mail.tm addresses; they
-  are throwaway by design and can be suspended by MEGA. Use as a mirror, not a
-  sole copy.
-- **ToS**: bulk `megatools reg` + disposable-email signups are against MEGA's
-  terms for the accounts themselves. Don't use this for anything you don't
-  have the right to store.
+- **Credentials are plaintext** in `accounts.csv` / `backup_log.csv` (both
+  git-ignored). Treat as secrets.
+- **Disposable-email + bulk `megatools reg` signups are against MEGA's ToS**
+  for those accounts. Don't use this to store anything you don't have the
+  right to.
 
 ## License
 
 MIT. Based on
 [f-o/MEGA-Account-Generator](https://github.com/f-o/MEGA-Account-Generator)
-(Python account/mail layer) and the `megatools` client. See `LICENSE`.
+(account/mail layer) and the `megatools` client. See `LICENSE`.
