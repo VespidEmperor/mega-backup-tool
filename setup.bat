@@ -1,37 +1,60 @@
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
+
 echo === mega-backup-tool setup ===
 
 REM 1. Python present?
-python --version >nul 2>nul
+where python >nul 2>nul
 if errorlevel 1 (
-  echo [ERROR] python not found on PATH. Install from https://python.org
+  echo [ERROR] Python not found. Install from https://python.org
   exit /b 1
 )
 
-REM 2. Install deps into the SAME python (python -m pip, not bare pip —
-REM    bare pip can point at a different Python than "python").
+REM 2. Python deps (deps only - megatools is a binary, handled below)
+echo [..] Installing Python deps...
 python -m pip install -r requirements.txt
 if errorlevel 1 (
   echo [ERROR] pip install failed.
   exit /b 1
 )
 
-REM 3. megatools on PATH?
+REM 3. megatools - standalone binary, not a pip package.
+set "MTOOLS=%LOCALAPPDATA%\megatools"
+set "MTOOLS_URL=https://xff.cz/megatools/builds/builds/megatools-1.11.5.20250706-win64.zip"
+
 where megatools >nul 2>nul
-if errorlevel 1 (
-  echo.
-  echo [WARNING] megatools not found on PATH.
-  echo   Download the Windows build from https://xff.cz/megatools/builds/builds/
-  echo   Unzip it, then add the folder containing megatools.exe to your PATH:
-  echo     Start -^> "Edit the system environment variables" -^> Environment
-  echo     Variables -^> Path -^> Edit -^> New -^> C:\path\to\megatools
-  echo   Then REOPEN this terminal.
-  echo.
-) else (
-  echo [OK] megatools found.
+if not errorlevel 1 (
+  echo [OK] megatools already on PATH.
+  goto :done
 )
 
+if not exist "%MTOOLS%\megatools.exe" (
+  echo [..] Downloading megatools...
+  if not exist "%MTOOLS%" mkdir "%MTOOLS%"
+  curl.exe -sS -L -o "%MTOOLS%\megatools.zip" "%MTOOLS_URL%"
+  if errorlevel 1 (
+    echo [ERROR] megatools download failed. Get it manually:
+    echo         %MTOOLS_URL%
+    exit /b 1
+  )
+  echo [..] Extracting...
+  powershell -NoProfile -Command "Expand-Archive -Path '%MTOOLS%\megatools.zip' -DestinationPath '%MTOOLS%' -Force"
+  REM the zip extracts into a megatools-<version>-win64 subfolder; hoist the exe up
+  for /r "%MTOOLS%" %%F in (megatools.exe) do copy /y "%%F" "%MTOOLS%\megatools.exe" >nul
+)
+
+if not exist "%MTOOLS%\megatools.exe" (
+  echo [ERROR] megatools not found after extract. Get it from:
+  echo         %MTOOLS_URL%
+  exit /b 1
+)
+
+echo [..] Adding "%MTOOLS%" to your user PATH (persistent)...
+powershell -NoProfile -Command "$p=[Environment]::GetEnvironmentVariable('Path','User'); if($p -notlike '*%MTOOLS%*'){ [Environment]::SetEnvironmentVariable('Path', $p.TrimEnd(';') + ';%MTOOLS%', 'User') }"
+
+:done
 echo.
-echo Setup complete. Run: python generate_accounts.py
+echo Done. CLOSE this window and open a NEW one, then run:
+echo   megatools --version
+echo   python generate_accounts.py
 endlocal

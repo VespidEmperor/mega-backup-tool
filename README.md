@@ -36,8 +36,10 @@ That's it. See **Troubleshooting** at the bottom if a step errors.
 - **Python 3.6+** on your `PATH`.
 - Python deps: `python -m pip install -r requirements.txt`
   (`python -m pip`, not bare `pip`, so it targets the same interpreter `python` uses).
-- **megatools** on your `PATH`:
-  - Windows: unzip `megatools-*-win64.zip` from
+- **megatools** on your `PATH` (a standalone binary, *not* a pip package —
+  that's why it isn't a `requirements.txt` line).
+  - Windows: `setup.bat` downloads and installs it automatically.
+    Manual: unzip `megatools-*-win64.zip` from
     <https://xff.cz/megatools/builds/builds/>, then add the folder with
     `megatools.exe` to your Windows `PATH`.
   - Linux: `sudo apt install megatools` (or `dnf install megatools`).
@@ -128,8 +130,9 @@ Use `python -m pip install -r requirements.txt` (same `python` you run the
 script with) rather than bare `pip`.
 
 **`megatools` is not recognized / it fails at account registration**
-`megatools` isn't on `PATH`. Install it and add its folder to `PATH`, then
-**reopen** the terminal (PATH changes only apply to new shells).
+`megatools` isn't on `PATH`. Run `setup.bat` (it downloads megatools and adds it
+to `PATH`), then **reopen** the terminal (PATH changes only apply to new
+shells). On Linux, `sudo apt install megatools`.
 
 **"Could not get new Mail.tm account" (repeatedly)**
 mail.tm is rate-limiting you. Create sequentially (no `-t`), space batches out,
