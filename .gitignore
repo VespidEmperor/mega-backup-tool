@@ -1,0 +1,14 @@
+# Credentials and account data — never commit
+accounts.csv
+backup_log.csv
+copy_plan.csv
+*.log
+*.old.csv
+
+# Scratch
+__pycache__/
+*.pyc
+.venv/
+venv/
+.idea/
+.vscode/
