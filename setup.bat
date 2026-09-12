@@ -18,6 +18,15 @@ if errorlevel 1 (
   exit /b 1
 )
 
+REM 2b. mega.py (server_copy.py dependency) --no-deps, because 1.0.8 pins a
+REM tenacity<6 that is broken on Python 3.11+; we install modern tenacity above.
+echo [..] Installing mega.py (server_copy.py dependency)...
+python -m pip install --no-deps "mega.py==1.0.8"
+if errorlevel 1 (
+  echo [ERROR] mega.py install failed.
+  exit /b 1
+)
+
 REM 3. megatools - standalone binary, not a pip package.
 set "MTOOLS=%LOCALAPPDATA%\megatools"
 set "MTOOLS_URL=https://xff.cz/megatools/builds/builds/megatools-1.11.5.20250706-win64.zip"

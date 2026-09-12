@@ -36,6 +36,9 @@ That's it. See **Troubleshooting** at the bottom if a step errors.
 - **Python 3.6+** on your `PATH`.
 - Python deps: `python -m pip install -r requirements.txt`
   (`python -m pip`, not bare `pip`, so it targets the same interpreter `python` uses).
+  `server_copy.py` additionally needs `mega.py` — installed via
+  `python -m pip install --no-deps "mega.py==1.0.8"` (see note below on why
+  `--no-deps`); the `setup` scripts do both steps for you.
 - **megatools** on your `PATH` (a standalone binary, *not* a pip package —
   that's why it isn't a `requirements.txt` line).
   - Windows: `setup.bat` downloads and installs it automatically.
@@ -55,7 +58,27 @@ That's it. See **Troubleshooting** at the bottom if a step errors.
 python generate_accounts.py                 # 3 accounts (default)
 python generate_accounts.py -n 10           # 10 accounts, sequential (safest vs rate limits)
 python generate_accounts.py -n 5 -p "pw"    # 5 accounts, shared password
+
+# choose a disposable-mail provider (default: auto = rotate across all)
+python generate_accounts.py --provider mailtm
+python generate_accounts.py --provider guerrillamail
+python generate_accounts.py --provider 1secmail
+python generate_accounts.py --provider mailgw
 ```
+
+Supported mail providers:
+
+| Provider | Flag | Notes |
+|---|---|---|
+| Mail.tm | `mailtm` | original provider; rotates domains (@uberip.com, …) |
+| GuerrillaMail | `guerrillamail` | no-account inbox via public API |
+| 1secmail | `1secmail` | simplest API; often blocked from datacenter IPs |
+| mail.gw (MailGorilla) | `mailgw` | Mail.tm-compatible standalone service |
+
+`--provider auto` (default) round-robins across all providers so parallel runs
+spread the load, and if one provider fails to create an inbox it falls through
+to the next instead of aborting the whole batch. Pin `--provider` to a single
+provider when you know only one is reachable from your IP.
 
 Each account is registered and email-verified automatically. Credentials are
 appended to `accounts.csv`:
@@ -64,8 +87,8 @@ appended to `accounts.csv`:
 |---|---|
 | `Email` | MEGA login (a disposable mail.tm address) |
 | `MEGA Password` | the password you log in with |
-| `Usage` | free-text label (edit to track what each account holds) |
-| `Mail.tm Password` / `Mail.tm ID` | the disposable inbox (kept for future access) |
+| `Usage` | free-text label — records which mail provider created the inbox (`mailtm`/`guerrillamail`/`1secmail`/`mailgw`) |
+| `Mail.tm Password` / `Mail.tm ID` | the disposable inbox credential (kept for future access; columns are legacy-named) |
 | `Purpose` | free-text |
 
 ### 2. Keep accounts alive
@@ -129,14 +152,22 @@ You installed deps with a different Python than the one you're running with.
 Use `python -m pip install -r requirements.txt` (same `python` you run the
 script with) rather than bare `pip`.
 
+**`module 'asyncio' has no attribute 'coroutine'` (or similar, in `tenacity`)**
+You have the old `tenacity` 5.x that the `mega.py` package pulls in; it's broken
+on Python 3.11+. Fix: `python -m pip install "tenacity>=8.0.0"` (and
+`pycryptodome`). The `setup` scripts already install a modern tenacity and use
+`--no-deps` for `mega.py` so its stale `tenacity<6` pin doesn't take effect.
+
 **`megatools` is not recognized / it fails at account registration**
 `megatools` isn't on `PATH`. Run `setup.bat` (it downloads megatools and adds it
 to `PATH`), then **reopen** the terminal (PATH changes only apply to new
 shells). On Linux, `sudo apt install megatools`.
 
-**"Could not get new Mail.tm account" (repeatedly)**
-mail.tm is rate-limiting you. Create sequentially (no `-t`), space batches out,
-and wait a few minutes.
+**"Could not get [provider] account" / "All mail providers failed"**
+A disposable-mail service is rate-limiting or blocking your IP. `--provider auto`
+falls through to the next provider automatically; for a fixed provider, run
+sequentially (no `-t`), space batches out, and wait a few minutes. Some
+providers block non-residential IPs outright (see the provider table above).
 
 **Account works today but dies later**
 MEGA deletes accounts inactive ~3 months and can suspend disposable-email
